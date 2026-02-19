@@ -3,69 +3,70 @@ import pandas as pd
 from PIL import Image, ImageDraw
 import io
 
-# TR99 kesinlikle dolu ve verisi olan bir dünya
 DUNYA_ID = "tr99"
 
 def veri_al(dosya):
     url = f"https://{DUNYA_ID}.klanlar.org/map/{dosya}.txt"
-    headers = {'User-Agent': 'Mozilla/5.0'}
-    r = requests.get(url, headers=headers)
-    # Veriyi yüklerken hata veren satırları atla
-    return pd.read_csv(io.StringIO(r.text), header=None, on_bad_lines='skip')
+    r = requests.get(url, headers={'User-Agent': 'Mozilla/5.0'})
+    # Sütunları ayırmadan ham metin olarak oku
+    return pd.read_csv(io.StringIO(r.text), header=None)
 
 def ciz():
     try:
-        klan = veri_al("tribe")
-        oyuncu = veri_al("player")
-        koy = veri_al("village")
+        klan_df = veri_al("tribe")
+        oyuncu_df = veri_al("player")
+        koy_df = veri_al("village")
 
-        # Klan analizini daha esnek yapalım (Sütunları garantiye alalım)
-        # 0: id, 2: tag, 5: puan
-        klan_temiz = klan.iloc[:, [0, 2, 5]].copy()
-        klan_temiz.columns = ['id', 'tag', 'puan']
+        # --- AKILLI ANALİZ ---
+        # Klan tablosunda: 0. sütun ID, 2. sütun TAG, 5. sütun PUAN (genellikle)
+        # Ama biz işi şansa bırakmıyoruz.
         
-        # Puan sütununu sayıya çevir ve 0'dan büyükleri al
-        klan_temiz['puan'] = pd.to_numeric(klan_temiz['puan'], errors='coerce')
-        klan_temiz = klan_temiz.dropna(subset=['puan'])
+        # İlk 15 klanı PUAN sütununa göre bulalım (genelde en büyük sayılar buradadır)
+        # Puan sütunu genelde 5. veya 7. sütun olur.
+        puan_sutunu = 5 if klan_df.shape[1] > 5 else klan_df.columns[-1]
         
-        # İlk 15 klanı belirle
-        top15 = klan_temiz.sort_values('puan', ascending=False).head(15)
+        top15 = klan_df.sort_values(puan_sutunu, ascending=False).head(15)
         
-        # Renkler
+        # ID'leri ve Tag'leri alalım
+        klan_renk_map = {}
         renkler = [(255,0,0), (0,255,0), (0,0,255), (255,255,0), (255,0,255), (0,255,255), 
                    (255,165,0), (128,0,128), (0,128,0), (255,20,147), (210,105,30), 
                    (0,250,154), (0,0,128), (128,128,0), (178,34,34)]
-        renk_map = dict(zip(top15['id'], renkler))
+        
+        for i, (idx, row) in enumerate(top15.iterrows()):
+            k_id = str(row[0])
+            klan_renk_map[k_id] = renkler[i]
 
-        # Oyuncu-Klan Eşleşmesi (0: oyuncu_id, 2: klan_id)
-        o_k_map = dict(zip(oyuncu[0], oyuncu[2]))
+        # Oyuncu -> Klan Map (0: oyuncu_id, 2: klan_id)
+        oyuncu_klan = {str(row[0]): str(row[2]) for _, row in oyuncu_df.iterrows()}
 
-        # 1000x1000 Harita
-        img = Image.new('RGB', (1000, 1000), (25, 25, 25))
+        # 1000x1000 Siyah Tuval
+        img = Image.new('RGB', (1000, 1000), (20, 20, 20))
         d = ImageDraw.Draw(img)
 
-        # Izgara
-        for i in range(100, 1000, 100):
-            d.line([(i, 0), (i, 1000)], fill=(45, 45, 45))
-            d.line([(0, i), (1000, i)], fill=(45, 45, 45))
-
-        count = 0
-        for _, v in koy.iterrows():
+        # Köyleri İşle
+        boyanan_koy = 0
+        for _, row in koy_df.iterrows():
             # 2: x, 3: y, 4: oyuncu_id
-            x, y, oid = int(v[2]), int(v[3]), v[4]
-            kid = o_k_map.get(oid, 0)
-            if kid in renk_map:
-                # Köyleri belirgin yapmak için 2x2 kare çiziyoruz
-                d.rectangle([x-1, y-1, x, y], fill=renk_map[kid])
-                count += 1
-            else:
-                d.point((x,y), (65, 65, 65))
+            try:
+                x, y, o_id = int(row[2]), int(row[3]), str(row[4])
+                k_id = oyuncu_klan.get(o_id, "0")
+                
+                if k_id in klan_renk_map:
+                    # Köyleri belirgin yapmak için 3x3 kare
+                    d.rectangle([x-1, y-1, x+1, y+1], fill=klan_renk_map[k_id])
+                    boyanan_koy += 1
+                else:
+                    # Diğer köyler küçük gri nokta
+                    d.point((x, y), fill=(60, 60, 60))
+            except:
+                continue
 
         img.save("guncel_harita.png")
-        print(f"Bitti! {count} köy boyandı.")
-        
+        print(f"Başarı: {boyanan_koy} köy ilk 15 klan rengine boyandı.")
+
     except Exception as e:
-        print(f"Hata detayı: {e}")
+        print(f"Hata: {e}")
 
 if __name__ == "__main__":
     ciz()
