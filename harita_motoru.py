@@ -1,7 +1,7 @@
 import requests
 from PIL import Image, ImageDraw, ImageFont
 
-DUNYA_ID = "tr101" # Burayı istediğin gibi değiştirebilirsin
+DUNYA_ID = "tr101"
 
 def veri_getir(dosya):
     url = f"https://{DUNYA_ID}.klanlar.org/map/{dosya}.txt"
@@ -15,10 +15,8 @@ def harita_yap():
         village_data = veri_getir("village")
         tribe_raw = veri_getir("tribe")
 
-        # Klan ID -> Tag eşleşmesi (Sunucu tribe.txt'yi düzgün verirse buradan alacak)
         klan_tagleri = {t[0]: requests.utils.unquote(t[2]).replace('+', ' ') for t in tribe_raw if len(t) > 2}
 
-        # Klan Puanlarını Hesapla
         klan_puanlari = {}
         for p in player_data:
             if len(p) >= 5:
@@ -38,10 +36,8 @@ def harita_yap():
         img = Image.new('RGB', (1000, 1000), (20, 20, 20))
         draw = ImageDraw.Draw(img)
 
-        # Klan merkezlerini hesaplamak için koordinat listesi
-        klan_koordinatları = {k_id: [] for k_id in top_klan_ids}
+        klan_koordinatlari = {k_id: [] for k_id in top_klan_ids}
 
-        # Köyleri Çiz
         for v in village_data:
             if len(v) >= 5:
                 try:
@@ -49,25 +45,36 @@ def harita_yap():
                     k_id = oyuncu_klan.get(o_id, "0")
                     if k_id in renk_map:
                         draw.rectangle([x-1, y-1, x+1, y+1], fill=renk_map[k_id])
-                        klan_koordinatları[k_id].append((x, y))
+                        klan_koordinatlari[k_id].append((x, y))
                     else:
-                        draw.point((x, y), fill=(50, 50, 50))
+                        draw.point((x, y), fill=(55, 55, 55))
                 except: continue
 
-        # Klan İsimlerini Yaz
+        # --- FONT AYARI ---
+        try:
+            # GitHub sunucularında genellikle bu font bulunur
+            font = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 18)
+        except:
+            # Bulamazsa varsayılanı kullan
+            font = ImageFont.load_default()
+
         for k_id in top_klan_ids:
-            if klan_koordinatları[k_id]:
-                # Koordinatların ortalamasını al (Yoğunluk merkezi)
-                avg_x = sum(c[0] for c in klan_koordinatları[k_id]) / len(klan_koordinatları[k_id])
-                avg_y = sum(c[1] for c in klan_koordinatları[k_id]) / len(klan_koordinatları[k_id])
+            if klan_koordinatlari[k_id]:
+                # Yoğunluk merkezini hesapla
+                avg_x = sum(c[0] for c in klan_koordinatlari[k_id]) / len(klan_koordinatlari[k_id])
+                avg_y = sum(c[1] for c in klan_koordinatlari[k_id]) / len(klan_koordinatlari[k_id])
                 
                 tag = klan_tagleri.get(k_id, f"K-{k_id}")
-                # Yazıyı daha belirgin yapmak için siyah gölge ekle
-                draw.text((avg_x+1, avg_y+1), tag, fill=(0,0,0))
-                draw.text((avg_x, avg_y), tag, fill=renk_map[k_id])
+                
+                # Yazıyı belirginleştirmek için 4 bir yanına siyah gölge (kontur) yapalım
+                for offset in [(-1,-1), (1,-1), (-1,1), (1,1)]:
+                    draw.text((avg_x + offset[0], avg_y + offset[1]), tag, fill=(0,0,0), font=font)
+                
+                # Ana yazıyı kendi renginde yaz
+                draw.text((avg_x, avg_y), tag, fill=renk_map[k_id], font=font)
 
         img.save("guncel_harita.png")
-        print(f"BAŞARILI! Etiketli harita kaydedildi.")
+        print("BAŞARILI! Etiketler büyütüldü ve harita güncellendi.")
 
     except Exception as e:
         print(f"Hata: {str(e)}")
