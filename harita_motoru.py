@@ -3,7 +3,7 @@ import pandas as pd
 from PIL import Image, ImageDraw
 import io
 
-DUNYA_ID = "tr101"
+DUNYA_ID = "tr99"
 
 def veri_al(dosya):
     url = f"https://{DUNYA_ID}.klanlar.org/map/{dosya}.txt"
