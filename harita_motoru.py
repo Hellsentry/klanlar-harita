@@ -1,7 +1,7 @@
 import requests
 from PIL import Image, ImageDraw
 
-DUNYA_ID = "tr99"
+DUNYA_ID = "tr101"
 
 def veri_getir(dosya):
     url = f"https://{DUNYA_ID}.klanlar.org/map/{dosya}.txt"
