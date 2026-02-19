@@ -1,0 +1,24 @@
+name: Harita Guncelle
+on:
+  schedule:
+    - cron: '0 * * * *' # Her saat başı çalışır
+  workflow_dispatch: # Elinle çalıştırma butonu ekler
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - name: Python Kur
+        uses: actions/setup-python@v2
+        with: {python-version: '3.9'}
+      - name: Paketleri Yukle
+        run: pip install requests pandas Pillow
+      - name: Haritayi Yap
+        run: python harita_motoru.py
+      - name: Kaydet
+        run: |
+          git config --local user.email "action@github.com"
+          git config --local user.name "GitHub Action"
+          git add guncel_harita.png
+          git commit -m "Harita güncellendi" || exit 0
+          git push
